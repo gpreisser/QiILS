@@ -6,6 +6,7 @@ using Graphs
 using SimpleWeightedGraphs
 using JSON
 using Statistics
+using ProgressMeter
 
 # ------------------
 # Graph-related code

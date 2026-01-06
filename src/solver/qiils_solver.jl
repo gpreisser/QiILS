@@ -236,7 +236,7 @@ Returns
 function qiils_solve(
     wg,
     λ_sweep::Float64,
-    gvec::Vector{Float64};
+    gvec::Vector{Float64},
     attempts::Int = 20,
     sweeps_per_attempt::Int = 80,
     percentage::Float64 = 0.3,
@@ -262,7 +262,8 @@ function qiils_solve(
     best_angles = finaltheta(θ)
 
     best_cut_history = Vector{Float64}(undef, attempts)
-
+    total_steps = attempts * sweeps_per_attempt
+    prog = Progress(total_steps; desc="QiILS Full Progress")
     for attempt in 1:attempts
         # ---- Sweeps with convergence test ----
         for sweep in 1:sweeps_per_attempt
@@ -271,6 +272,7 @@ function qiils_solve(
             sweep_pass!(N, wg, λ_sweep, θ, gvec, cos2θ, sin2θ)
 
             Δθ_max = maximum(abs.(θ .- θ_old))
+             next!(prog) 
 
             if use_scaled_convergence
                 scaled_tol = max(angle_conv * mean(abs.(θ .- π/4)), 1e-12)
@@ -308,6 +310,6 @@ function qiils_solve(
         cos2θ .= cos.(2 .* θ)
         sin2θ .= sin.(2 .* θ)
     end
-
+    finish!(prog)   # <- add this
     return best_cut_history, best_angles
 end
