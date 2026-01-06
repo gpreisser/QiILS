@@ -19,6 +19,7 @@ include("graphs/load_solution.jl")
 # Solver
 # ------------------
 include("solver/qiils_solver.jl")
+include("solver/sa_solver.jl")
 
 export load_graph
 export load_optimal_cut
@@ -26,5 +27,6 @@ export qiils_solve
 export get_optimal_cut
 export solution_file_path
 export create_and_save_graph_QiILS
+export sa_maxcut
 
 end

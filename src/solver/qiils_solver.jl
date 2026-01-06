@@ -206,32 +206,10 @@ end
 ########## High-level solver ##########
 
 """
-    qiils_solve(
-        wg,
-        λ_sweep,
-        gvec;
-        attempts=20,
-        sweeps_per_attempt=80,
-        percentage=0.3,
-        seed=1,
-        θ0=nothing,
-        angle_conv=1e-6,
-        use_scaled_convergence=true,
-    )
-
-Run the QiILS angle-based solver on a (weighted or unweighted) graph `wg`.
-
-One *iteration* = one *attempt*, and each attempt consists of:
-  1. Several sweeps (`sweeps_per_attempt`) with convergence test after each sweep
-  2. Projection θ → {0, π/2} via `finaltheta`
-  3. Conversion to spins and MaxCut evaluation
-  4. Update of best MaxCut value and recording into history
-  5. Mixing of angles to escape local minima
-
-Returns
--------
-- `best_cut_history::Vector{Float64}`  best MaxCut value after each attempt
-- `best_angles::Vector{Float64}`       measured angles (0 or π/2) of best solution
+Returns:
+- best_cut_history::Vector{Float64}
+- best_angles::Vector{Float64}
+- total_sweeps_done::Int
 """
 function qiils_solve(
     wg,
@@ -260,19 +238,23 @@ function qiils_solve(
 
     best_cut = -Inf
     best_angles = finaltheta(θ)
-
     best_cut_history = Vector{Float64}(undef, attempts)
-    total_steps = attempts * sweeps_per_attempt
-    prog = Progress(total_steps; desc="QiILS Full Progress")
+
+    # NEW: sweep accounting
+    total_sweeps_done = 0
+
+    # NEW: progress bar by attempts (not sweeps)
+    prog = Progress(attempts; desc="QiILS Attempts")
+
     for attempt in 1:attempts
         # ---- Sweeps with convergence test ----
         for sweep in 1:sweeps_per_attempt
-            θ_old .= θ    # <-- FIXED: no allocation
+            θ_old .= θ
 
             sweep_pass!(N, wg, λ_sweep, θ, gvec, cos2θ, sin2θ)
+            total_sweeps_done += 1
 
             Δθ_max = maximum(abs.(θ .- θ_old))
-             next!(prog) 
 
             if use_scaled_convergence
                 scaled_tol = max(angle_conv * mean(abs.(θ .- π/4)), 1e-12)
@@ -298,18 +280,21 @@ function qiils_solve(
             best_angles = copy(θ_meas)
             best_spins = copy(spins)
 
-            println("New BEST found in attempt $attempt: cut = $best_cut")
-            println("Verifying cut from stored spins = ",
-            maxcut_value(wg, best_spins))      # MUST match
-            println("----------------------------------------------")
+            #println("New BEST found in attempt $attempt: cut = $best_cut")
+            #println("Verifying cut from stored spins = ", maxcut_value(wg, best_spins))
+            #println("----------------------------------------------")
         end
+
         best_cut_history[attempt] = best_cut
 
         # ---- Mixing ----
         θ = mixing(N, θ, percentage, seed, attempt)
         cos2θ .= cos.(2 .* θ)
         sin2θ .= sin.(2 .* θ)
+
+        next!(prog)  # one tick per attempt
     end
-    finish!(prog)   # <- add this
-    return best_cut_history, best_angles
+
+    finish!(prog)
+    return best_cut_history, best_angles, total_sweeps_done
 end

@@ -9,21 +9,20 @@ using Graphs
 using Downloads
 
 println("====================================================")
-println("                QiILS Optimizer Runner              ")
+println("                 SA Optimizer Runner                ")
 println("====================================================")
 
 # ---------------------------------------------------------
 # User parameters (Gset)
 # ---------------------------------------------------------
 gset = 12
-seed = 2                   # used for QiILS randomness (not the graph)
-weighted = true            # ignored for Gset unless the file has weights
+seed = 2                   # SA RNG seed (not the graph)
+weighted = true            # just a tag for the output folder
 
-λ_sweep = 0.28
-attempts = 2000
-sweeps_per_attempt = 80
-percentage = 0.3
-angle_conv = 0.1           # (not used by current qiils_solve methods you have loaded)
+β0 = 0.01
+βf = 5.0
+sweeps = 10_000
+schedule = :linear         # :linear or :geometric
 
 # ---------------------------------------------------------
 # Download + load Gset graph
@@ -43,7 +42,7 @@ graphfile = gset_path
 println("✔ Loaded graph with N = $(nv(wg)), M = $(ne(wg)) edges")
 
 # ---------------------------------------------------------
-# Load known optimal cut (from QiILS/src/graphs/gset_solutions.jl)
+# Load known optimal cut
 # ---------------------------------------------------------
 optimal_cut = get_optimal_cut(gset)
 if optimal_cut === nothing
@@ -53,71 +52,57 @@ else
 end
 
 # ---------------------------------------------------------
-# Prepare gvec (currently required by qiils_solve)
+# Run SA
 # ---------------------------------------------------------
-gvec = zeros(Float64, nv(wg))
+println("\n▶ Running SA solver…")
 
-# ---------------------------------------------------------
-# Run solver
-# ---------------------------------------------------------
-println("\n▶ Running QiILS solver…")
-
-# Your currently-defined methods are positional and start with:
-# qiils_solve(wg, λ_sweep, gvec, attempts, ...)
-best_history, best_angles, total_sweeps_done = qiils_solve(
-    wg,
-    λ_sweep,
-    gvec,
-    attempts,
-    sweeps_per_attempt,
-    percentage,
-    seed,
-    nothing,     # θ0
-    angle_conv,  # <-- your 0.1 will be used
-    true,        # use_scaled_convergence
+best_cut, best_spins, best_hist, sweeps_done = sa_maxcut(
+    wg;
+    β0=β0,
+    βf=βf,
+    sweeps=sweeps,
+    seed=seed,
+    schedule=schedule,
 )
 
-best_cut = best_history[end]
-
 println("\n====================================================")
-println("                 QiILS Solver Results               ")
+println("                  SA Solver Results                 ")
 println("====================================================")
 println("  ✓ Best MaxCut found = $best_cut")
+println("  ✓ Sweeps done = $sweeps_done")
 
 ratio = nothing
 if optimal_cut !== nothing
     ratio = best_cut / optimal_cut
     println("  ✓ Approximation ratio = $(round(ratio, digits=5))")
-    println("  ✓ Total sweeps done = $total_sweeps_done")
 end
-
 println("====================================================\n")
 
 # ---------------------------------------------------------
 # Save results
 # ---------------------------------------------------------
 weight_tag = weighted ? "weighted" : "unweighted"
-save_dir = "results/Gset$(gset)_seed$(seed)_$(weight_tag)/"
+save_dir = "results/SA_Gset$(gset)_seed$(seed)_$(weight_tag)/"
 mkpath(save_dir)
 
 save_data = Dict(
+    "solver" => "SA",
     "gset" => gset,
     "graphfile" => graphfile,
     "seed" => seed,
     "weighted_flag" => weighted,
-    "λ_sweep" => λ_sweep,
-    "attempts" => attempts,
-    "sweeps_per_attempt" => sweeps_per_attempt,
-    "percentage" => percentage,
-    "angle_conv" => angle_conv,  # recorded even if not used
-    "best_cut_history" => best_history,
+    "beta0" => β0,
+    "betaf" => βf,
+    "schedule" => String(schedule),
+    "sweeps_requested" => sweeps,
+    "sweeps_done" => sweeps_done,
+    "best_cut_history" => best_hist,
     "best_cut" => best_cut,
-    "best_angles" => best_angles,
     "optimal_cut" => optimal_cut === nothing ? "none" : optimal_cut,
     "approx_ratio" => ratio === nothing ? "none" : ratio,
 )
 
-save_path = joinpath(save_dir, "qiils_results.json")
+save_path = joinpath(save_dir, "sa_results.json")
 open(save_path, "w") do io
     JSON.print(io, save_data)
 end
