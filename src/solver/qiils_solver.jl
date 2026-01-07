@@ -238,12 +238,14 @@ function qiils_solve(
 
     best_cut = -Inf
     best_angles = finaltheta(θ)
+
     best_cut_history = Vector{Float64}(undef, attempts)
 
-    # NEW: sweep accounting
+    # NEW: cumulative sweeps up to end of each attempt
+    sweeps_cumsum = Vector{Int}(undef, attempts)
     total_sweeps_done = 0
 
-    # NEW: progress bar by attempts (not sweeps)
+    # progress bar by attempts
     prog = Progress(attempts; desc="QiILS Attempts")
 
     for attempt in 1:attempts
@@ -278,23 +280,22 @@ function qiils_solve(
         if cut_val > best_cut
             best_cut = cut_val
             best_angles = copy(θ_meas)
-            best_spins = copy(spins)
-
-            #println("New BEST found in attempt $attempt: cut = $best_cut")
-            #println("Verifying cut from stored spins = ", maxcut_value(wg, best_spins))
-            #println("----------------------------------------------")
+            # best_spins = copy(spins)  # keep if you want to store/verify later
         end
 
         best_cut_history[attempt] = best_cut
+        sweeps_cumsum[attempt] = total_sweeps_done
 
         # ---- Mixing ----
         θ = mixing(N, θ, percentage, seed, attempt)
         cos2θ .= cos.(2 .* θ)
         sin2θ .= sin.(2 .* θ)
 
-        next!(prog)  # one tick per attempt
+        next!(prog)
     end
 
     finish!(prog)
-    return best_cut_history, best_angles, total_sweeps_done
+
+    # total sweeps is sweeps_cumsum[end]
+    return best_cut_history, best_angles, sweeps_cumsum
 end

@@ -20,6 +20,7 @@ include("graphs/load_solution.jl")
 # ------------------
 include("solver/qiils_solver.jl")
 include("solver/sa_solver.jl")
+include("solver/tabu_solver.jl")
 
 export load_graph
 export load_optimal_cut
@@ -28,5 +29,5 @@ export get_optimal_cut
 export solution_file_path
 export create_and_save_graph_QiILS
 export sa_maxcut
-
+export tabu_maxcut
 end
